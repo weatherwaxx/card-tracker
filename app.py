@@ -8,16 +8,92 @@ Run with: python app.py
 Then visit: http://localhost:5050
 """
 
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, redirect, url_for
 from markupsafe import Markup
 from pricing_engine import suggest_price
-from database import init_db, get_latest_snapshots, get_all_players, get_snapshots
+from database import init_db, get_latest_snapshots, get_all_players, get_snapshots, save_snapshot, save_listings
+from ebay_fetcher import fetch_active_bin_listings, calculate_stats
 from trend_detector import detect_trends
 import json
 import os
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
+
+# Track refresh state
+_refresh_lock = threading.Lock()
+_refresh_in_progress = False
+_last_refresh_check = None
+
+
+def _data_is_stale():
+    """Check if the most recent snapshot is older than 24 hours."""
+    try:
+        snapshots = get_latest_snapshots()
+        if not snapshots:
+            return True
+        latest_time = max(s["fetched_at"] for s in snapshots)
+        latest_dt = datetime.fromisoformat(latest_time)
+        return datetime.now() - latest_dt > timedelta(hours=24)
+    except Exception:
+        return True
+
+
+def _refresh_watchlist_data():
+    """Fetch fresh eBay data for all watchlist players. Runs in background."""
+    global _refresh_in_progress
+    try:
+        watchlist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchlist.json")
+        with open(watchlist_path, "r") as f:
+            watchlist = json.load(f)
+
+        init_db()
+        for entry in watchlist:
+            player = entry["player"]
+            query = entry["query"]
+            try:
+                listings = fetch_active_bin_listings(query)
+                if not listings:
+                    continue
+                stats = calculate_stats(listings)
+                if not stats:
+                    continue
+                save_snapshot(
+                    player,
+                    stats["avg_price"],
+                    stats["median_price"],
+                    stats["min_price"],
+                    stats["max_price"],
+                    stats["num_listings"],
+                )
+                save_listings(player, listings)
+            except Exception:
+                continue
+    finally:
+        with _refresh_lock:
+            _refresh_in_progress = False
+
+
+def _auto_refresh_if_stale():
+    """Trigger a background refresh if data is stale and no refresh is running."""
+    global _refresh_in_progress, _last_refresh_check
+
+    # Don't check more than once every 5 minutes
+    if _last_refresh_check and datetime.now() - _last_refresh_check < timedelta(minutes=5):
+        return False
+
+    _last_refresh_check = datetime.now()
+
+    with _refresh_lock:
+        if _refresh_in_progress:
+            return True  # already refreshing
+        if _data_is_stale():
+            _refresh_in_progress = True
+            thread = threading.Thread(target=_refresh_watchlist_data, daemon=True)
+            thread.start()
+            return True
+    return False
 
 # ============================================================================
 # HTML TEMPLATES (inline for simplicity)
@@ -373,6 +449,12 @@ HOME_TEMPLATE = """
         <h2>📈 Market Monitor</h2>
         <p style="color: #888; margin-bottom: 20px;">Latest price data from your watchlist.</p>
 
+        {% if refreshing %}
+        <div style="background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 5px; padding: 12px; margin-bottom: 15px; text-align: center;">
+            <span style="color: #00d4ff;">Refreshing prices from eBay... reload in a minute to see updated data.</span>
+        </div>
+        {% endif %}
+
         {% if monitor_data %}
         <table>
             <thead>
@@ -394,12 +476,21 @@ HOME_TEMPLATE = """
                 {% endfor %}
             </tbody>
         </table>
-        <p style="text-align: center; margin-top: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
             <a href="/watchlist" style="color: #00d4ff;">View full watchlist →</a>
-        </p>
+            <a href="/refresh" style="color: #888; font-size: 0.85em; text-decoration: none;">↻ Refresh prices</a>
+        </div>
+        {% if last_updated %}
+        <p style="color: #555; font-size: 0.75em; text-align: right; margin-top: 5px;">Last updated: {{ last_updated }}</p>
+        {% endif %}
         {% else %}
         <p style="color: #666; text-align: center; margin: 30px 0;">
-            No data yet — run <code style="background: rgba(0,0,0,0.3); padding: 2px 5px;">python main.py</code> to fetch your first batch of prices.<br>
+            {% if refreshing %}
+            Fetching prices for the first time... reload in a minute.
+            {% else %}
+            No data yet.
+            <a href="/refresh" style="color: #00d4ff;">Fetch prices now →</a>
+            {% endif %}<br>
             <a href="/watchlist" style="color: #00d4ff;">View watchlist →</a>
         </p>
         {% endif %}
@@ -503,7 +594,11 @@ HISTORY_TEMPLATE = """
 @app.route("/")
 def home():
     """Home page with pricing tool and market monitor."""
+    # Auto-refresh if data is stale (>24 hours old)
+    refreshing = _auto_refresh_if_stale()
+
     # Get latest monitoring data for the Market Monitor panel
+    last_updated = None
     try:
         init_db()
         snapshots = get_latest_snapshots()
@@ -515,11 +610,31 @@ def home():
                 "avg_price": snap["avg_price"],
                 "trend": trend_info["percent_change"] if trend_info else None,
             })
+        if snapshots:
+            latest_time = max(s["fetched_at"] for s in snapshots)
+            last_updated = latest_time[:16].replace("T", " ")
     except Exception:
         monitor_data = []
 
-    page = render_template_string(HOME_TEMPLATE, result=None, error=None, monitor_data=monitor_data)
+    page = render_template_string(HOME_TEMPLATE, result=None, error=None,
+                                  monitor_data=monitor_data, refreshing=refreshing,
+                                  last_updated=last_updated)
     return render_template_string(BASE_TEMPLATE, title="Home", page_content=Markup(page))
+
+
+@app.route("/refresh")
+def refresh():
+    """Manually trigger a price refresh for all watchlist players."""
+    global _refresh_in_progress, _last_refresh_check
+
+    with _refresh_lock:
+        if not _refresh_in_progress:
+            _refresh_in_progress = True
+            _last_refresh_check = datetime.now()
+            thread = threading.Thread(target=_refresh_watchlist_data, daemon=True)
+            thread.start()
+
+    return redirect(url_for("home"))
 
 
 @app.route("/price", methods=["POST"])

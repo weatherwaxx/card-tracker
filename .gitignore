@@ -1,4 +1,6 @@
 config.py
+pythonanywhere_token.txt
 venv/
 *.db
+*.log
 __pycache__/
