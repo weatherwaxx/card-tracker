@@ -1,7 +1,7 @@
 """
-Card Pulse — Database Module
-=============================
-SQLite database for storing price snapshots over time.
+Card Tracker — Database Module
+================================
+SQLite database for storing price snapshots and listing data over time.
 """
 
 import sqlite3
@@ -23,6 +23,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Daily price snapshots — one row per player per day
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS price_snapshots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,20 +37,20 @@ def init_db():
         )
     """)
 
+    # Individual listing records for reference
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sold_listings (
+        CREATE TABLE IF NOT EXISTS listings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             player TEXT NOT NULL,
             title TEXT,
             price REAL NOT NULL,
-            sold_date TEXT,
+            listing_date TEXT,
             fetched_at TEXT NOT NULL
         )
     """)
 
     conn.commit()
     conn.close()
-    print("Database initialized.")
 
 
 def save_snapshot(player, avg_price, median_price, min_price, max_price, num_listings):
@@ -68,16 +69,16 @@ def save_snapshot(player, avg_price, median_price, min_price, max_price, num_lis
 
 
 def save_listings(player, listings):
-    """Save individual sold listing records."""
+    """Save individual listing records."""
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().isoformat()
     for listing in listings:
         cursor.execute(
-            """INSERT INTO sold_listings (player, title, price, sold_date, fetched_at)
+            """INSERT INTO listings (player, title, price, listing_date, fetched_at)
                VALUES (?, ?, ?, ?, ?)""",
             (player, listing.get("title", ""), listing["price"],
-             listing.get("sold_date", ""), now)
+             listing.get("listing_date", ""), now)
         )
     conn.commit()
     conn.close()
@@ -99,6 +100,24 @@ def get_snapshots(player, days=30):
     return [dict(row) for row in rows]
 
 
+def get_latest_snapshots():
+    """Get the most recent snapshot for each player."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT ps.* FROM price_snapshots ps
+        INNER JOIN (
+            SELECT player, MAX(fetched_at) as max_date
+            FROM price_snapshots
+            GROUP BY player
+        ) latest ON ps.player = latest.player AND ps.fetched_at = latest.max_date
+        ORDER BY ps.player
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
 def get_all_players():
     """Get a list of all tracked players in the database."""
     conn = get_connection()
@@ -111,3 +130,4 @@ def get_all_players():
 
 if __name__ == "__main__":
     init_db()
+    print("Database initialized.")

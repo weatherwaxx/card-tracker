@@ -1,15 +1,18 @@
 """
-Card Pulse — Daily Runner
-===========================
-Fetches eBay prices, detects trends, and sends alerts.
-Run this daily (manually or via launchd/cron).
+Card Tracker — Daily Runner
+=============================
+Fetches eBay prices for your watchlist, saves to database,
+detects 7-day trends, and sends alerts for big price moves.
+
+Run manually:  python main.py
+Or schedule via launchd for daily auto-runs.
 """
 
 import json
 import os
 from datetime import datetime
 from database import init_db, save_snapshot, save_listings
-from ebay_fetcher import fetch_sold_prices, calculate_stats
+from ebay_fetcher import fetch_active_bin_listings, calculate_stats
 from trend_detector import get_alerts
 from notifier import send_alerts
 
@@ -24,7 +27,7 @@ def load_watchlist():
 def run():
     """Main daily run: fetch prices, save to DB, check trends, send alerts."""
     print(f"\n{'='*50}")
-    print(f"Card Pulse — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Card Tracker — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}\n")
 
     # Initialize database
@@ -43,8 +46,8 @@ def run():
 
         print(f"Fetching: {player}...")
 
-        # Fetch sold listings from eBay
-        listings = fetch_sold_prices(query)
+        # Fetch active BIN listings from eBay.ca
+        listings = fetch_active_bin_listings(query)
 
         if not listings:
             print(f"  No listings found for {player}.\n")
@@ -56,9 +59,9 @@ def run():
             print(f"  Could not calculate stats for {player}.\n")
             continue
 
-        print(f"  Found {stats['num_listings']} sold listings")
-        print(f"  Avg: ${stats['avg_price']:.2f} | Median: ${stats['median_price']:.2f}")
-        print(f"  Range: ${stats['min_price']:.2f} - ${stats['max_price']:.2f}\n")
+        print(f"  Found {stats['num_listings']} active listings")
+        print(f"  Avg: ${stats['avg_price']:.2f} CAD | Median: ${stats['median_price']:.2f} CAD")
+        print(f"  Range: ${stats['min_price']:.2f} - ${stats['max_price']:.2f} CAD\n")
 
         # Save to database
         save_snapshot(
@@ -88,7 +91,7 @@ def run():
             print("(Need at least 2 days of data before trends can be calculated)")
 
     print(f"\nDone! Run again tomorrow for trend tracking.")
-    print(f"Launch the dashboard with: streamlit run dashboard.py\n")
+    print(f"View your dashboard at: http://localhost:5050\n")
 
 
 if __name__ == "__main__":

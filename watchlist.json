@@ -1,52 +1,197 @@
 [
     {
         "player": "Travis Hunter",
-        "query": "Travis Hunter rookie football card",
-        "notes": "2025 Draft - #1 pick (Panthers) - CB/WR two-way star, top rookie card value"
+        "query": "Travis Hunter 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Shedeur Sanders",
-        "query": "Shedeur Sanders rookie football card",
-        "notes": "2025 Draft - Browns QB - high profile, Coach Prime's son"
+        "query": "Shedeur Sanders 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Cam Ward",
-        "query": "Cam Ward rookie football card",
-        "notes": "2025 Draft - Dolphins QB - top passer in class"
+        "query": "Cam Ward 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Ashton Jeanty",
-        "query": "Ashton Jeanty rookie football card",
-        "notes": "2025 Draft - Raiders RB - Boise State star, highest rookie auto values"
+        "query": "Ashton Jeanty 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Tetairoa McMillan",
-        "query": "Tetairoa McMillan rookie football card",
-        "notes": "2025 Draft - Panthers WR - big-body receiver from Arizona"
+        "query": "Tetairoa McMillan 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Tyler Warren",
-        "query": "Tyler Warren rookie football card",
-        "notes": "2025 Draft - Colts TE - Penn State, elite pass-catcher"
+        "query": "Tyler Warren 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Omarion Hampton",
-        "query": "Omarion Hampton rookie football card",
-        "notes": "2025 Draft - Chargers RB - UNC workhorse"
+        "query": "Omarion Hampton 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Cam Skattebo",
-        "query": "Cam Skattebo rookie football card",
-        "notes": "2025 Draft - Giants RB - CFP breakout star, autos already $50+"
+        "query": "Cam Skattebo 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Abdul Carter",
-        "query": "Abdul Carter rookie football card",
-        "notes": "2025 Draft - top edge rusher from Penn State"
+        "query": "Abdul Carter 2025",
+        "category": "2025 Rookie"
     },
     {
         "player": "Mason Graham",
-        "query": "Mason Graham rookie football card",
-        "notes": "2025 Draft - top DT from Michigan"
+        "query": "Mason Graham 2025",
+        "category": "2025 Rookie"
+    },
+    {
+        "player": "Jaxson Dart",
+        "query": "Jaxson Dart 2025",
+        "category": "2025 Rookie"
+    },
+    {
+        "player": "Will Campbell",
+        "query": "Will Campbell 2025",
+        "category": "2025 Rookie"
+    },
+    {
+        "player": "Will Johnson",
+        "query": "Will Johnson 2025",
+        "category": "2025 Rookie"
+    },
+    {
+        "player": "Kelvin Banks Jr",
+        "query": "Kelvin Banks Jr 2025",
+        "category": "2025 Rookie"
+    },
+    {
+        "player": "Mykel Williams",
+        "query": "Mykel Williams 2025",
+        "category": "2025 Rookie"
+    },
+    {
+        "player": "Jayden Daniels",
+        "query": "Jayden Daniels",
+        "category": "2024 Rookie"
+    },
+    {
+        "player": "Caleb Williams",
+        "query": "Caleb Williams",
+        "category": "2024 Rookie"
+    },
+    {
+        "player": "Marvin Harrison Jr",
+        "query": "Marvin Harrison Jr",
+        "category": "2024 Rookie"
+    },
+    {
+        "player": "Malik Nabers",
+        "query": "Malik Nabers",
+        "category": "2024 Rookie"
+    },
+    {
+        "player": "Drake Maye",
+        "query": "Drake Maye",
+        "category": "2024 Rookie"
+    },
+    {
+        "player": "Patrick Mahomes",
+        "query": "Patrick Mahomes",
+        "category": "Current Star"
+    },
+    {
+        "player": "Josh Allen",
+        "query": "Josh Allen",
+        "category": "Current Star"
+    },
+    {
+        "player": "Lamar Jackson",
+        "query": "Lamar Jackson",
+        "category": "Current Star"
+    },
+    {
+        "player": "Joe Burrow",
+        "query": "Joe Burrow",
+        "category": "Current Star"
+    },
+    {
+        "player": "Jalen Hurts",
+        "query": "Jalen Hurts",
+        "category": "Current Star"
+    },
+    {
+        "player": "CJ Stroud",
+        "query": "CJ Stroud",
+        "category": "Current Star"
+    },
+    {
+        "player": "Ja'Marr Chase",
+        "query": "Ja'Marr Chase",
+        "category": "Current Star"
+    },
+    {
+        "player": "Justin Jefferson",
+        "query": "Justin Jefferson",
+        "category": "Current Star"
+    },
+    {
+        "player": "Tyreek Hill",
+        "query": "Tyreek Hill",
+        "category": "Current Star"
+    },
+    {
+        "player": "Saquon Barkley",
+        "query": "Saquon Barkley",
+        "category": "Current Star"
+    },
+    {
+        "player": "Bijan Robinson",
+        "query": "Bijan Robinson",
+        "category": "Current Star"
+    },
+    {
+        "player": "Micah Parsons",
+        "query": "Micah Parsons",
+        "category": "Current Star"
+    },
+    {
+        "player": "Myles Garrett",
+        "query": "Myles Garrett",
+        "category": "Current Star"
+    },
+    {
+        "player": "Sam Darnold",
+        "query": "Sam Darnold",
+        "category": "Current Star"
+    },
+    {
+        "player": "Tom Brady",
+        "query": "Tom Brady",
+        "category": "Legend"
+    },
+    {
+        "player": "Peyton Manning",
+        "query": "Peyton Manning",
+        "category": "Legend"
+    },
+    {
+        "player": "Joe Montana",
+        "query": "Joe Montana",
+        "category": "Legend"
+    },
+    {
+        "player": "Jerry Rice",
+        "query": "Jerry Rice",
+        "category": "Legend"
+    },
+    {
+        "player": "Barry Sanders",
+        "query": "Barry Sanders",
+        "category": "Legend"
     }
 ]

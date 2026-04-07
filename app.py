@@ -11,7 +11,10 @@ Then visit: http://localhost:5050
 from flask import Flask, render_template_string, request, jsonify
 from markupsafe import Markup
 from pricing_engine import suggest_price
+from database import init_db, get_latest_snapshots, get_all_players, get_snapshots
+from trend_detector import detect_trends
 import json
+import os
 from datetime import datetime
 
 app = Flask(__name__)
@@ -368,12 +371,38 @@ HOME_TEMPLATE = """
 
     <div class="card">
         <h2>📈 Market Monitor</h2>
-        <p style="color: #888; margin-bottom: 20px;">Quick view of your watched cards and recent price movements.</p>
+        <p style="color: #888; margin-bottom: 20px;">Latest price data from your watchlist.</p>
 
-        <p style="color: #666; text-align: center; margin: 30px 0;">
-            Watchlist data will appear here.<br>
+        {% if monitor_data %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Avg Price</th>
+                    <th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in monitor_data[:5] %}
+                <tr>
+                    <td>{{ item.player }}</td>
+                    <td>${{ "%.2f"|format(item.avg_price) }}</td>
+                    <td style="color: {% if item.trend and item.trend > 0 %}#00ff99{% elif item.trend and item.trend < 0 %}#ff6464{% else %}#888{% endif %};">
+                        {% if item.trend %}{{ "%+.1f"|format(item.trend) }}%{% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="text-align: center; margin-top: 15px;">
             <a href="/watchlist" style="color: #00d4ff;">View full watchlist →</a>
         </p>
+        {% else %}
+        <p style="color: #666; text-align: center; margin: 30px 0;">
+            No data yet — run <code style="background: rgba(0,0,0,0.3); padding: 2px 5px;">python main.py</code> to fetch your first batch of prices.<br>
+            <a href="/watchlist" style="color: #00d4ff;">View watchlist →</a>
+        </p>
+        {% endif %}
     </div>
 </div>
 """
@@ -381,30 +410,36 @@ HOME_TEMPLATE = """
 WATCHLIST_TEMPLATE = """
 <div class="card">
     <h2>📋 Watchlist</h2>
-    <p style="color: #888; margin-bottom: 20px;">Cards you're monitoring for price trends.</p>
+    <p style="color: #888; margin-bottom: 20px;">Players you're monitoring for price trends. Run <code style="background: rgba(0,0,0,0.3); padding: 2px 5px;">python main.py</code> daily to fetch new data.</p>
 
     {% if watchlist %}
     <table>
         <thead>
             <tr>
-                <th>Card</th>
-                <th>Brand</th>
-                <th>Current Price</th>
+                <th>Player</th>
+                <th>Search Query</th>
+                <th>Avg Price</th>
                 <th>7-Day Trend</th>
-                <th>Action</th>
+                <th>Data Points</th>
+                <th>History</th>
             </tr>
         </thead>
         <tbody>
             {% for item in watchlist %}
             <tr>
-                <td>{{ item.player }}</td>
-                <td>{{ item.brand }}</td>
-                <td>${{ "%.2f"|format(item.price) }}</td>
-                <td style="color: {% if item.trend > 0 %}#00ff99{% elif item.trend < 0 %}#ff6464{% else %}#888{% endif %};">
-                    {% if item.trend > 0 %}↑{% elif item.trend < 0 %}↓{% else %}→{% endif %} {{ "%.1f"|format(item.trend) }}%
+                <td><strong>{{ item.player }}</strong><br><span style="color: #666; font-size: 0.8em;">{{ item.notes }}</span></td>
+                <td style="font-size: 0.85em;">{{ item.query }}</td>
+                <td>{% if item.avg_price %}${{ "%.2f"|format(item.avg_price) }} <span style="color: #666; font-size: 0.75em;">CAD</span>{% else %}—{% endif %}</td>
+                <td style="color: {% if item.trend and item.trend > 0 %}#00ff99{% elif item.trend and item.trend < 0 %}#ff6464{% else %}#888{% endif %};">
+                    {% if item.trend %}
+                        {% if item.trend > 0 %}↑{% elif item.trend < 0 %}↓{% endif %} {{ "%+.1f"|format(item.trend) }}%
+                    {% else %}—{% endif %}
                 </td>
+                <td style="text-align: center;">{{ item.data_points }}</td>
                 <td>
+                    {% if item.data_points > 0 %}
                     <a href="/history/{{ item.player }}" style="color: #00d4ff; text-decoration: none;">View →</a>
+                    {% else %}—{% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -412,8 +447,8 @@ WATCHLIST_TEMPLATE = """
     </table>
     {% else %}
     <p style="color: #666; text-align: center; margin: 40px 0;">
-        No cards on your watchlist yet.<br>
-        Use the Pricing Tool to add cards you're tracking.
+        No players on your watchlist.<br>
+        Edit <code style="background: rgba(0,0,0,0.3); padding: 2px 5px;">watchlist.json</code> to add players.
     </p>
     {% endif %}
 </div>
@@ -424,10 +459,35 @@ HISTORY_TEMPLATE = """
     <h2>📉 Price History: {{ player }}</h2>
     <p style="color: #888; margin-bottom: 20px;">Price movements over the past 30 days.</p>
 
+    {% if snapshots %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Avg Price</th>
+                <th>Median</th>
+                <th>Range</th>
+                <th>Listings</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for snap in snapshots %}
+            <tr>
+                <td>{{ snap.fetched_at[:10] }}</td>
+                <td>${{ "%.2f"|format(snap.avg_price) }}</td>
+                <td>${{ "%.2f"|format(snap.median_price) }}</td>
+                <td>${{ "%.2f"|format(snap.min_price) }} - ${{ "%.2f"|format(snap.max_price) }}</td>
+                <td>{{ snap.num_listings }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
     <p style="color: #666; text-align: center; margin: 40px 0;">
-        Historical data coming soon.<br>
-        Database tracking in progress.
+        No price history yet for {{ player }}.<br>
+        Run <code style="background: rgba(0,0,0,0.3); padding: 2px 5px;">python main.py</code> to start tracking.
     </p>
+    {% endif %}
 
     <div style="text-align: center; margin-top: 20px;">
         <a href="/watchlist" style="color: #00d4ff; text-decoration: none;">← Back to Watchlist</a>
@@ -443,7 +503,22 @@ HISTORY_TEMPLATE = """
 @app.route("/")
 def home():
     """Home page with pricing tool and market monitor."""
-    page = render_template_string(HOME_TEMPLATE, result=None, error=None)
+    # Get latest monitoring data for the Market Monitor panel
+    try:
+        init_db()
+        snapshots = get_latest_snapshots()
+        monitor_data = []
+        for snap in snapshots:
+            trend_info = detect_trends(snap["player"])
+            monitor_data.append({
+                "player": snap["player"],
+                "avg_price": snap["avg_price"],
+                "trend": trend_info["percent_change"] if trend_info else None,
+            })
+    except Exception:
+        monitor_data = []
+
+    page = render_template_string(HOME_TEMPLATE, result=None, error=None, monitor_data=monitor_data)
     return render_template_string(BASE_TEMPLATE, title="Home", page_content=Markup(page))
 
 
@@ -461,7 +536,7 @@ def price():
         # Validate inputs
         if not all([year, brand, player]):
             error = "Year, Brand, and Player are required."
-            page = render_template_string(HOME_TEMPLATE, result=None, error=error)
+            page = render_template_string(HOME_TEMPLATE, result=None, error=error, monitor_data=[])
             return render_template_string(BASE_TEMPLATE, title="Home", page_content=Markup(page)), 400
 
         # Get pricing suggestion
@@ -470,26 +545,45 @@ def price():
         # If no data found
         if result["num_listings"] == 0:
             error = f"No listings found for '{result['query']}'. Try different search terms."
-            page = render_template_string(HOME_TEMPLATE, result=None, error=error)
+            page = render_template_string(HOME_TEMPLATE, result=None, error=error, monitor_data=[])
             return render_template_string(BASE_TEMPLATE, title="Home", page_content=Markup(page)), 404
 
-        page = render_template_string(HOME_TEMPLATE, result=result, error=None)
+        page = render_template_string(HOME_TEMPLATE, result=result, error=None, monitor_data=[])
         return render_template_string(BASE_TEMPLATE, title="Home", page_content=Markup(page))
 
     except Exception as e:
         error = f"Error calculating price: {str(e)}"
-        page = render_template_string(HOME_TEMPLATE, result=None, error=error)
+        page = render_template_string(HOME_TEMPLATE, result=None, error=error, monitor_data=[])
         return render_template_string(BASE_TEMPLATE, title="Home", page_content=Markup(page)), 500
 
 
 @app.route("/watchlist")
 def watchlist():
-    """Show watchlist with trend data."""
+    """Show watchlist with trend data from database."""
+    # Load watchlist.json for player names and queries
+    watchlist_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchlist.json")
     try:
-        with open("watchlist.json", "r") as f:
-            watchlist_data = json.load(f)
+        with open(watchlist_path, "r") as f:
+            raw_watchlist = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        watchlist_data = []
+        raw_watchlist = []
+
+    # Enrich with database data
+    init_db()
+    watchlist_data = []
+    for entry in raw_watchlist:
+        player = entry["player"]
+        snapshots = get_snapshots(player, days=30)
+        trend_info = detect_trends(player)
+
+        watchlist_data.append({
+            "player": player,
+            "query": entry.get("query", ""),
+            "notes": entry.get("notes", ""),
+            "avg_price": snapshots[0]["avg_price"] if snapshots else None,
+            "trend": trend_info["percent_change"] if trend_info else None,
+            "data_points": len(snapshots),
+        })
 
     page = render_template_string(WATCHLIST_TEMPLATE, watchlist=watchlist_data)
     return render_template_string(BASE_TEMPLATE, title="Watchlist", page_content=Markup(page))
@@ -497,8 +591,10 @@ def watchlist():
 
 @app.route("/history/<player>")
 def history(player):
-    """Show price history chart for a player."""
-    page = render_template_string(HISTORY_TEMPLATE, player=player)
+    """Show price history for a player from the database."""
+    init_db()
+    snapshots = get_snapshots(player, days=90)
+    page = render_template_string(HISTORY_TEMPLATE, player=player, snapshots=snapshots)
     return render_template_string(BASE_TEMPLATE, title=f"History - {player}", page_content=Markup(page))
 
 
@@ -514,4 +610,4 @@ if __name__ == "__main__":
     print("📍 Visit: http://localhost:5050")
     print("\nPress Ctrl+C to stop.\n")
 
-    app.run(debug=True, host="127.0.0.1", port=5050)
+    app.run(debug=False, host="0.0.0.0", port=5050)
